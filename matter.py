@@ -38,20 +38,26 @@ class MatterBridge:
 
         os.makedirs(self.storage, exist_ok=True)
 
-        # Start the matter-server process (it writes its socket to socket_path)
-        cmd = [
-            sys.executable, "-m", "matter_server.server",
-            "--storage-path", self.storage,
-            "--port", "0",  # disable HTTP, use socket only
-        ]
-        log.info("Starting matter-server: %s", " ".join(cmd))
-        self._proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        await asyncio.sleep(2)  # give server time to bind
+        try:
+            cmd = [
+                sys.executable, "-m", "matter_server.server",
+                "--storage-path", self.storage,
+                "--port", "0",
+            ]
+            log.info("Starting matter-server: %s", " ".join(cmd))
+            self._proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            await asyncio.sleep(2)
 
-        url = f"ws+unix://{self._socket_path}"
-        self._client = MatterClient(url, None)
-        self._session = await self._client.__aenter__()
-        log.info("Connected to matter-server via %s", url)
+            url = f"ws+unix://{self._socket_path}"
+            self._client = MatterClient(url, None)
+            self._session = await self._client.__aenter__()
+            log.info("Connected to matter-server via %s", url)
+        except Exception as e:
+            log.warning("Failed to start matter-server, falling back to stub mode: %s", e)
+            self._client = None
+            if self._proc:
+                self._proc.terminate()
+                self._proc = None
 
     async def stop(self):
         if self._client:
