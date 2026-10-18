@@ -1,10 +1,11 @@
 """HTTP routes — mirrors the endpoints consumed by the Go SidecarClient."""
 import logging
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
+from auth import Auth
 from matter import MatterBridge
 
 log = logging.getLogger("homebase-matter.routes")
@@ -20,7 +21,10 @@ class CommandRequest(BaseModel):
     arguments: dict = {}
 
 
-def register_routes(app: FastAPI):
+def register_routes(app: FastAPI, auth: Auth):
+    read = [Depends(auth.require("read"))]
+    write = [Depends(auth.require("write"))]
+
     def bridge(request: Request) -> MatterBridge:
         return request.app.state.bridge
 
@@ -30,7 +34,7 @@ def register_routes(app: FastAPI):
         status = 200 if ok else 503
         return JSONResponse({"ok": ok}, status_code=status)
 
-    @app.post("/commission")
+    @app.post("/commission", dependencies=write)
     async def commission(request: Request, body: CommissionRequest):
         try:
             result = await bridge(request).commission(body.setup_code)
@@ -39,7 +43,7 @@ def register_routes(app: FastAPI):
             log.exception("commission failed")
             raise HTTPException(status_code=500, detail=str(e))
 
-    @app.delete("/commission/{node_id}")
+    @app.delete("/commission/{node_id}", dependencies=write)
     async def decommission(request: Request, node_id: int):
         try:
             await bridge(request).decommission(node_id)
@@ -50,7 +54,7 @@ def register_routes(app: FastAPI):
             log.exception("decommission failed")
             raise HTTPException(status_code=500, detail=str(e))
 
-    @app.get("/devices")
+    @app.get("/devices", dependencies=read)
     async def list_devices(request: Request):
         try:
             return await bridge(request).list_devices()
@@ -58,7 +62,7 @@ def register_routes(app: FastAPI):
             log.exception("list devices failed")
             raise HTTPException(status_code=500, detail=str(e))
 
-    @app.get("/devices/{node_id}")
+    @app.get("/devices/{node_id}", dependencies=read)
     async def get_device_state(request: Request, node_id: int):
         try:
             return await bridge(request).get_device_state(node_id)
@@ -68,7 +72,7 @@ def register_routes(app: FastAPI):
             log.exception("get device state failed")
             raise HTTPException(status_code=500, detail=str(e))
 
-    @app.post("/devices/{node_id}/command")
+    @app.post("/devices/{node_id}/command", dependencies=write)
     async def send_command(request: Request, node_id: int, body: CommandRequest):
         try:
             result = await bridge(request).send_command(

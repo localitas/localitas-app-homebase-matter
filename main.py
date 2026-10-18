@@ -19,6 +19,7 @@ def main():
     parser.add_argument("--listen", default=":9222", help="listen address (default :9222)")
     parser.add_argument("--storage", default="", help="path to Matter fabric storage dir (default ~/.localitas/homebase/matter)")
     parser.add_argument("--log-level", default="info", choices=["debug", "info", "warning", "error"])
+    parser.add_argument("--token", default="", help="core API token to verify callers with (default $LOCALITAS_API_TOKEN)")
     args = parser.parse_args()
 
     logging.getLogger().setLevel(getattr(logging, args.log_level.upper()))
@@ -37,7 +38,11 @@ def main():
     storage = args.storage or os.path.expanduser("~/.localitas/homebase/matter")
     os.makedirs(storage, exist_ok=True)
 
-    app = create_app(storage=storage)
+    token = args.token or os.environ.get("LOCALITAS_API_TOKEN", "")
+    if not token:
+        log.error("no API token: pass --token or set LOCALITAS_API_TOKEN; refusing to serve without authentication")
+        sys.exit(1)
+    app = create_app(storage=storage, api_token=token)
 
     def _shutdown(sig, frame):
         log.info("shutting down")

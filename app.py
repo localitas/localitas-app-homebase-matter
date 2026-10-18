@@ -4,13 +4,15 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from auth import Auth
 from matter import MatterBridge
 from routes import register_routes
 
 log = logging.getLogger("homebase-matter.app")
 
 
-def create_app(storage: str) -> FastAPI:
+def create_app(storage: str, api_token: str) -> FastAPI:
+    auth = Auth(api_token)
     bridge = MatterBridge(storage=storage)
 
     @asynccontextmanager
@@ -23,5 +25,5 @@ def create_app(storage: str) -> FastAPI:
 
     app = FastAPI(title="homebase-matter", lifespan=lifespan)
     app.state.bridge = bridge
-    register_routes(app)
+    register_routes(app, auth)
     return app
