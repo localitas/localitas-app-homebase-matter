@@ -10,6 +10,10 @@ import base64
 import hashlib
 import hmac
 import json
+import os
+from pathlib import Path
+
+import yaml
 
 from fastapi import HTTPException, Request
 
@@ -55,3 +59,18 @@ class Auth:
                 raise HTTPException(status_code=403, detail="insufficient permission")
             return claims
         return check
+
+
+def resolve_token(flag: str = "", config_path: Path = None) -> str:
+    """The core API token to verify callers with: the --token flag, then
+    $LOCALITAS_API_TOKEN, then core.auth.api_token in core's config file
+    (~/.localitas/config-core.yaml, as the localitas SDKs read it)."""
+    if flag:
+        return flag
+    if os.environ.get("LOCALITAS_API_TOKEN"):
+        return os.environ["LOCALITAS_API_TOKEN"]
+    path = config_path or Path.home() / ".localitas" / "config-core.yaml"
+    if not path.exists():
+        return ""
+    cfg = yaml.safe_load(path.read_text()) or {}
+    return str(((cfg.get("core") or {}).get("auth") or {}).get("api_token") or "")

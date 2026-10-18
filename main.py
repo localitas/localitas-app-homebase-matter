@@ -38,9 +38,10 @@ def main():
     storage = args.storage or os.path.expanduser("~/.localitas/homebase/matter")
     os.makedirs(storage, exist_ok=True)
 
-    token = args.token or os.environ.get("LOCALITAS_API_TOKEN", "")
+    from auth import resolve_token
+    token = resolve_token(args.token)
     if not token:
-        log.error("no API token: pass --token or set LOCALITAS_API_TOKEN; refusing to serve without authentication")
+        log.error("no API token: pass --token, set LOCALITAS_API_TOKEN, or set core.auth.api_token in ~/.localitas/config-core.yaml; refusing to serve without authentication")
         sys.exit(1)
     app = create_app(storage=storage, api_token=token)
 

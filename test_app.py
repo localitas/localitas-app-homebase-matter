@@ -127,3 +127,16 @@ def test_health_needs_no_token(anon):
 def test_refuses_to_start_without_a_token(tmp_path):
     with pytest.raises(ValueError):
         create_app(storage=str(tmp_path), api_token="")
+
+
+def test_token_comes_from_flag_env_then_core_config(tmp_path, monkeypatch):
+    from auth import resolve_token
+    cfg = tmp_path / "config-core.yaml"
+    cfg.write_text("core:\n  auth:\n    api_token: from-core-config\n")
+    monkeypatch.delenv("LOCALITAS_API_TOKEN", raising=False)
+    assert resolve_token("", cfg) == "from-core-config"
+    monkeypatch.setenv("LOCALITAS_API_TOKEN", "from-env")
+    assert resolve_token("", cfg) == "from-env"
+    assert resolve_token("from-flag", cfg) == "from-flag"
+    monkeypatch.delenv("LOCALITAS_API_TOKEN")
+    assert resolve_token("", tmp_path / "missing.yaml") == ""
