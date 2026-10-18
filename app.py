@@ -11,8 +11,8 @@ from routes import register_routes
 log = logging.getLogger("homebase-matter.app")
 
 
-def create_app(storage: str, api_token: str) -> FastAPI:
-    auth = Auth(api_token)
+def create_app(storage: str, api_token: str, public_keys=(), accept_legacy: bool = True) -> FastAPI:
+    auth = Auth(api_token, public_keys=public_keys, accept_legacy=accept_legacy)
     bridge = MatterBridge(storage=storage)
 
     @asynccontextmanager
