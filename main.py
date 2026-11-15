@@ -44,10 +44,10 @@ def main():
         log.error("no API token: pass --token, set LOCALITAS_API_TOKEN, or set core.auth.api_token in ~/.localitas/config-core.yaml; refusing to serve without authentication")
         sys.exit(1)
     from auth import resolve_identity
-    public_keys, accept_legacy = resolve_identity(token)
+    public_keys = resolve_identity(token)
     if not public_keys:
-        log.warning("no identity public key from LOCALITAS_IDENTITY_PUBLIC_KEY or core; only legacy identity tokens will verify")
-    app = create_app(storage=storage, api_token=token, public_keys=public_keys, accept_legacy=accept_legacy)
+        log.warning("no identity public key from LOCALITAS_IDENTITY_PUBLIC_KEY or core; only the app token will verify")
+    app = create_app(storage=storage, api_token=token, public_keys=public_keys)
 
     def _shutdown(sig, frame):
         log.info("shutting down")

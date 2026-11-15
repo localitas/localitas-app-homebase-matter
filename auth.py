@@ -4,11 +4,11 @@ Mirrors localitas-go's AuthMiddleware/RequireScope and the Python SDK's
 scope.py: an identity token is "payload.signature", base64url JSON claims
 signed by core with its Ed25519 key, verified with core's public key
 (LOCALITAS_IDENTITY_PUBLIC_KEY, or fetched from core), and expiring (exp,
-with two minutes of clock skew). Tokens signed with the HMAC key derived from
-core's API token, or without an expiry, are legacy: every app holds that
-token, so they are accepted only while core still accepts legacy tokens. The
-homebase app's own background work (the HomeKit bridge) has no user and
-calls with the app token itself.
+with two minutes of clock skew). Any other token, including one signed with
+a key derived from core's API token or one without an expiry, is refused:
+every app holds that token, so such a token would let any app pose as any
+user. The homebase app's own background work (the HomeKit bridge) has no
+user and calls with the app token itself.
 """
 import base64
 import hashlib
@@ -25,7 +25,6 @@ from fastapi import HTTPException, Request
 
 import ed25519
 
-_KEY_DOMAIN = "localitas-internal-token-v1"
 _KID_PREFIX = "ed25519-"
 _CLOCK_SKEW = 120
 _RANK = {"admin": 3, "write": 2, "read": 1, "": 0}
@@ -45,18 +44,15 @@ def _unauthorized():
 
 
 class Auth:
-    def __init__(self, api_token: str, public_keys=(), accept_legacy: bool = True):
+    def __init__(self, api_token: str, public_keys=()):
         if not api_token:
             raise ValueError("an API token is required to verify requests")
         self._api_token = api_token
-        digest = hashlib.sha256(f"{_KEY_DOMAIN}:{api_token}".encode()).digest()
-        self._key = base64.standard_b64encode(digest)
         self._public_keys = {}
         for k in public_keys:
             if k:
                 raw = _b64url_decode(k.strip())
                 self._public_keys[key_id(raw)] = raw
-        self._accept_legacy = accept_legacy
 
     def caller(self, authorization: str) -> dict:
         """The caller's claims, or HTTPException 401 when the request does
@@ -77,21 +73,14 @@ class Auth:
         if not isinstance(claims, dict) or not claims.get("user_id"):
             raise _unauthorized()
         kid = claims.get("kid") or ""
-        if kid.startswith(_KID_PREFIX):
-            pub = self._public_keys.get(kid)
-            if pub is None or not ed25519.verify(pub, payload.encode(), raw_sig):
-                raise _unauthorized()
-        else:
-            if not self._accept_legacy:
-                raise _unauthorized()
-            expected = base64.urlsafe_b64encode(hmac.new(self._key, payload.encode(), hashlib.sha256).digest()).rstrip(b"=").decode()
-            if not hmac.compare_digest(sig.encode(), expected.encode()):
-                raise _unauthorized()
+        if not kid.startswith(_KID_PREFIX):
+            raise _unauthorized()
+        pub = self._public_keys.get(kid)
+        if pub is None or not ed25519.verify(pub, payload.encode(), raw_sig):
+            raise _unauthorized()
         exp = int(claims.get("exp") or 0)
         if not exp:
-            if not self._accept_legacy:
-                raise _unauthorized()
-            return claims
+            raise _unauthorized()
         now = time.time()
         if now > exp + _CLOCK_SKEW or int(claims.get("iat") or 0) > now + _CLOCK_SKEW:
             raise _unauthorized()
@@ -107,27 +96,23 @@ class Auth:
         return check
 
 
-def resolve_identity(api_token: str, core_url: str = "") -> tuple:
-    """The public keys identity tokens verify with, and whether legacy tokens
-    are accepted: LOCALITAS_IDENTITY_PUBLIC_KEY and
-    LOCALITAS_ACCEPT_LEGACY_IDENTITY_TOKENS, else what core serves at
-    GET /api/auth/identity/public-key, else no key and legacy accepted."""
+def resolve_identity(api_token: str, core_url: str = "") -> list:
+    """The public keys identity tokens verify with:
+    LOCALITAS_IDENTITY_PUBLIC_KEY, else what core serves at
+    GET /api/auth/identity/public-key, else none."""
     keys = [k for k in os.environ.get("LOCALITAS_IDENTITY_PUBLIC_KEY", "").split(",") if k.strip()]
-    legacy_env = os.environ.get("LOCALITAS_ACCEPT_LEGACY_IDENTITY_TOKENS", "").lower()
-    legacy = None if legacy_env == "" else legacy_env not in ("false", "0")
-    if not keys:
-        base = (core_url or os.environ.get("CORE_URL") or "http://localhost:8080").rstrip("/")
-        req = urllib.request.Request(base + "/api/auth/identity/public-key", headers={"Authorization": f"Bearer {api_token}"})
-        try:
-            with urllib.request.urlopen(req, timeout=3) as resp:
-                body = json.loads(resp.read().decode())
-            if body.get("public_key"):
-                keys = [body["public_key"]]
-            if legacy is None:
-                legacy = bool(body.get("accept_legacy"))
-        except Exception:
-            pass
-    return keys, (True if legacy is None else legacy)
+    if keys:
+        return keys
+    base = (core_url or os.environ.get("CORE_URL") or "http://localhost:8080").rstrip("/")
+    req = urllib.request.Request(base + "/api/auth/identity/public-key", headers={"Authorization": f"Bearer {api_token}"})
+    try:
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            body = json.loads(resp.read().decode())
+        if body.get("public_key"):
+            return [body["public_key"]]
+    except Exception:
+        pass
+    return []
 
 
 def resolve_token(flag: str = "", config_path: Path = None) -> str:
