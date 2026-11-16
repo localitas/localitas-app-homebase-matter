@@ -117,7 +117,7 @@ docker run -d \
   homebase-matter
 ```
 
-The container needs core's API token (`LOCALITAS_API_TOKEN`); `CORE_URL` is where it fetches core's identity public key.
+The container needs core's API token (`LOCALITAS_API_TOKEN`); `CORE_URL` is where it fetches core's identity public key (default `http://localhost:8090`).
 
 `--network=host` is required for mDNS multicast (device discovery). `--privileged` is required for BLE access.
 
@@ -163,6 +163,18 @@ make test
 ```
 
 Tests run in stub mode — no Matter hardware or SDK required.
+
+## Release
+
+Every push to `main` runs the tests and publishes a GitHub release (`v0.1.<commits>.<timestamp>`) carrying `localitas-matter.tar.gz`: the committed tree under `localitas-matter/`, built by `make build-release`. The `localitas-matter` formula in [localitas-homebrew-tap](https://github.com/localitas/localitas-homebrew-tap) installs that tree into `libexec` and pip-installs `requirements.txt`.
+
+After a release, point the formula at it and commit the tap:
+
+```bash
+make release-update-formula            # latest release; TAG=vX.Y.Z for another
+```
+
+It downloads the published asset and writes its version and sha256 into `../localitas-homebrew-tap/Formula/localitas-matter.rb` (`HOMEBREW_FORMULA=` for another path).
 
 ## Platform notes
 

@@ -238,6 +238,15 @@ def test_tokens_expire_after_two_minutes_of_skew():
         auth.caller("Bearer " + identity("bob", "read", now=now + 300))
 
 
+def test_core_url_comes_from_argument_then_env_then_cores_default_port(monkeypatch):
+    from auth import resolve_core_url
+    monkeypatch.delenv("CORE_URL", raising=False)
+    assert resolve_core_url() == "http://localhost:8090"
+    monkeypatch.setenv("CORE_URL", "http://core.test:9000/")
+    assert resolve_core_url() == "http://core.test:9000"
+    assert resolve_core_url("http://other.test:1/") == "http://other.test:1"
+
+
 def test_identity_key_comes_from_env_then_core(monkeypatch, core):
     monkeypatch.setenv("LOCALITAS_IDENTITY_PUBLIC_KEY", PUBLIC_KEY)
     assert resolve_identity(API_TOKEN, core_url="http://127.0.0.1:1") == [PUBLIC_KEY]
