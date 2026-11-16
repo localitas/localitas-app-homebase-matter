@@ -14,7 +14,7 @@ Part of the [Localitas](https://github.com/localitas) platform — a self-hosted
 - **Live state** — read current attribute values (on/off, brightness, temperature, lock state, etc.)
 - **Commands** — send cluster commands (Toggle, MoveToLevel, SetpointRaiseLower, LockDoor, etc.)
 
-The Homebase app talks to this sidecar via HTTP on `localhost:9222`. If the sidecar is unavailable, Homebase degrades gracefully — the UI still works but device control is disabled.
+The Homebase app talks to this sidecar over HTTP at its `--sidecar-url` (default `http://localhost:9222`), with a bearer token. If the sidecar is unavailable, Homebase degrades gracefully — the UI still works but device control is disabled.
 
 ## Architecture
 
@@ -38,14 +38,23 @@ Matter devices (lights, locks, thermostats, …)
 
 All endpoints are consumed by the Go `SidecarClient` in `localitas-app-homebase`.
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/health` | Health check — `200 ok:true` when bridge is ready |
-| `POST` | `/commission` | Commission a device by setup code |
-| `DELETE` | `/commission/{node_id}` | Remove a device from the fabric |
-| `GET` | `/devices` | List all commissioned devices |
-| `GET` | `/devices/{node_id}` | Get live cluster state for a device |
-| `POST` | `/devices/{node_id}/command` | Send a cluster command to a device |
+| Method | Path | Scope | Description |
+|--------|------|-------|-------------|
+| `GET` | `/health` | none | Health check — `200 ok:true` when bridge is ready |
+| `POST` | `/commission` | write | Commission a device by setup code |
+| `DELETE` | `/commission/{node_id}` | write | Remove a device from the fabric |
+| `GET` | `/devices` | read | List all commissioned devices |
+| `GET` | `/devices/{node_id}` | read | Get live cluster state for a device |
+| `POST` | `/devices/{node_id}/command` | write | Send a cluster command to a device |
+
+### Authentication
+
+Every route except `/health` needs `Authorization: Bearer <token>` with at least the scope in the table (`admin > write > read`). The sidecar accepts two kinds of token:
+
+- **Core's API token** — the token the sidecar was started with (see `--token`). It counts as admin; Homebase's own background work (the HomeKit bridge) calls with it.
+- **A core-signed identity token** — base64url JSON claims and an Ed25519 signature, verified with `LOCALITAS_IDENTITY_PUBLIC_KEY` or the key core serves at `GET /api/auth/identity/public-key`. It must carry a `user_id` and an unexpired `exp`; its `permission` claim is the scope.
+
+A missing or invalid token gets `401`; a token below the route's scope gets `403`.
 
 ### Commission request
 
@@ -102,9 +111,13 @@ docker run -d \
   --name homebase-matter \
   --network host \
   --privileged \
+  -e LOCALITAS_API_TOKEN \
+  -e CORE_URL=http://localhost:8090 \
   -v ~/.localitas/homebase/matter:/data/matter \
   homebase-matter
 ```
+
+The container needs core's API token (`LOCALITAS_API_TOKEN`); `CORE_URL` is where it fetches core's identity public key.
 
 `--network=host` is required for mDNS multicast (device discovery). `--privileged` is required for BLE access.
 
@@ -114,9 +127,9 @@ If `python-matter-server` is not installed, the sidecar runs in **stub mode**: a
 
 ```bash
 # Install only the lightweight deps (no matter SDK)
-pip install fastapi uvicorn pydantic
+pip install fastapi uvicorn pydantic pyyaml
 
-python main.py --listen :9222
+python main.py --listen :9222 --token "$LOCALITAS_API_TOKEN"
 # → WARNING: python-matter-server not installed — running in stub mode
 ```
 
@@ -127,6 +140,7 @@ python main.py --listen :9222
 | `--listen` | `:9222` | TCP address to listen on |
 | `--storage` | `~/.localitas/homebase/matter` | Directory for Matter fabric data (node credentials, ACLs) |
 | `--log-level` | `info` | Log verbosity: `debug`, `info`, `warning`, `error` |
+| `--token` | `$LOCALITAS_API_TOKEN`, else `core.auth.api_token` in `~/.localitas/config-core.yaml` | Core's API token, used to verify callers and to fetch core's identity public key. The sidecar refuses to start without one. |
 
 ## Matter cluster support
 
