@@ -96,6 +96,14 @@ class Auth:
         return check
 
 
+DEFAULT_CORE_URL = "http://localhost:8090"
+
+
+def resolve_core_url(core_url: str = "") -> str:
+    """Where core is: core_url, else $CORE_URL, else core's default port."""
+    return (core_url or os.environ.get("CORE_URL") or DEFAULT_CORE_URL).rstrip("/")
+
+
 def resolve_identity(api_token: str, core_url: str = "") -> list:
     """The public keys identity tokens verify with:
     LOCALITAS_IDENTITY_PUBLIC_KEY, else what core serves at
@@ -103,8 +111,7 @@ def resolve_identity(api_token: str, core_url: str = "") -> list:
     keys = [k for k in os.environ.get("LOCALITAS_IDENTITY_PUBLIC_KEY", "").split(",") if k.strip()]
     if keys:
         return keys
-    base = (core_url or os.environ.get("CORE_URL") or "http://localhost:8080").rstrip("/")
-    req = urllib.request.Request(base + "/api/auth/identity/public-key", headers={"Authorization": f"Bearer {api_token}"})
+    req = urllib.request.Request(resolve_core_url(core_url) + "/api/auth/identity/public-key", headers={"Authorization": f"Bearer {api_token}"})
     try:
         with urllib.request.urlopen(req, timeout=3) as resp:
             body = json.loads(resp.read().decode())

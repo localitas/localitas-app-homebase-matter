@@ -117,7 +117,7 @@ docker run -d \
   homebase-matter
 ```
 
-The container needs core's API token (`LOCALITAS_API_TOKEN`); `CORE_URL` is where it fetches core's identity public key.
+The container needs core's API token (`LOCALITAS_API_TOKEN`); `CORE_URL` is where it fetches core's identity public key (default `http://localhost:8090`).
 
 `--network=host` is required for mDNS multicast (device discovery). `--privileged` is required for BLE access.
 
