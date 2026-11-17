@@ -34,7 +34,7 @@ install: venv
 
 dev: install
 	@mkdir -p $(STORAGE) $(HOME)/.localitas/logs/homebase-matter
-	@$(PYTHON) main.py --listen :$(PORT) --storage $(STORAGE)
+	@$(PYTHON) main.py --listen 127.0.0.1:$(PORT) --storage $(STORAGE)
 
 stop:
 	@-pkill -f "homebase-matter.*main.py" 2>/dev/null || true
