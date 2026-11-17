@@ -129,7 +129,7 @@ If `python-matter-server` is not installed, the sidecar runs in **stub mode**: a
 # Install only the lightweight deps (no matter SDK)
 pip install fastapi uvicorn pydantic pyyaml
 
-python main.py --listen :9222 --token "$LOCALITAS_API_TOKEN"
+python main.py --listen 127.0.0.1:9222 --token "$LOCALITAS_API_TOKEN"
 # → WARNING: python-matter-server not installed — running in stub mode
 ```
 
@@ -137,7 +137,7 @@ python main.py --listen :9222 --token "$LOCALITAS_API_TOKEN"
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--listen` | `:9222` | TCP address to listen on |
+| `--listen` | `127.0.0.1:9222` | TCP address to listen on (`:9222` for every interface, as in the container) |
 | `--storage` | `~/.localitas/homebase/matter` | Directory for Matter fabric data (node credentials, ACLs) |
 | `--log-level` | `info` | Log verbosity: `debug`, `info`, `warning`, `error` |
 | `--token` | `$LOCALITAS_API_TOKEN`, else `core.auth.api_token` in `~/.localitas/config-core.yaml` | Core's API token, used to verify callers and to fetch core's identity public key. The sidecar refuses to start without one. |

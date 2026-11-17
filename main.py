@@ -16,7 +16,8 @@ log = logging.getLogger("homebase-matter")
 
 def main():
     parser = argparse.ArgumentParser(prog="homebase-matter")
-    parser.add_argument("--listen", default=":9222", help="listen address (default :9222)")
+    # Homebase reaches the sidecar over loopback; a container passes :9222.
+    parser.add_argument("--listen", default="127.0.0.1:9222", help="listen address (default 127.0.0.1:9222)")
     parser.add_argument("--storage", default="", help="path to Matter fabric storage dir (default ~/.localitas/homebase/matter)")
     parser.add_argument("--log-level", default="info", choices=["debug", "info", "warning", "error"])
     parser.add_argument("--token", default="", help="core API token to verify callers with (default $LOCALITAS_API_TOKEN)")
